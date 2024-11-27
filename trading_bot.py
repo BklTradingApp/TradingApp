@@ -55,13 +55,19 @@ LAST_API_CALL = 0
 
 # Graceful shutdown handler
 def graceful_exit(signum, frame):
-    logging.info("Received shutdown signal. Saving order history and exiting gracefully...")
+    message = "Received shutdown signal. Saving order history and exiting gracefully..."
+    logging.info(message)
+    send_telegram_message(message)  # Notify on shutdown
+
     if not order_history.empty:
         order_history.to_csv(order_history_file, index=False)
     exit(0)
 
-signal.signal(signal.SIGINT, graceful_exit)
-signal.signal(signal.SIGTERM, graceful_exit)
+# Register the graceful_exit function to handle different signals
+signal.signal(signal.SIGINT, graceful_exit)  # Sent by Ctrl+C
+signal.signal(signal.SIGTERM, graceful_exit)  # Sent by `kill` command
+signal.signal(signal.SIGHUP, graceful_exit)   # Sent when terminal is closed
+signal.signal(signal.SIGQUIT, graceful_exit)  # Sent with `Ctrl+\` (Unix)
 
 # Function to send Telegram message
 def send_telegram_message(message):
