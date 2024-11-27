@@ -303,7 +303,7 @@ import threading
 def periodic_updates():
     while True:
         send_periodic_update()
-        time.sleep(10800)  # Send update every 3 hours
+        time.sleep(3600)  # Send update every 3 hours
 
 threading.Thread(target=periodic_updates, daemon=True).start()
 
