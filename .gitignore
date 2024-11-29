@@ -1,3 +1,32 @@
 # .gitignore
-.env
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# Logs
+*.log
 trading_bot.log
+
+# Virtual environment
+venv/
+ENV/
+env/
+.venv/
+env.bak/
+venv.bak/
+
+# Secrets
+*.env
+.env
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# VSCode settings
+.vscode/
+
+# MacOS files
+.DS_Store
+
+# Other
+*.swp
