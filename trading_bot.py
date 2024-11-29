@@ -51,8 +51,8 @@ base_url_binance = "https://api.binance.us"
 base_url_kraken = "https://api.kraken.com"
 
 # Configuration
-BUY_THRESHOLD = 0.9985
-SELL_THRESHOLD = 1.0025
+BUY_THRESHOLD = 0.9982
+SELL_THRESHOLD = 1.0015
 balance_threshold = float(os.getenv("BALANCE_THRESHOLD", "2750"))
 ORDER_TIMEOUT = 10  # Minutes
 POSITION_SIZE_PERCENTAGE = 0.10  # Use 10% of available balance for initial testing
@@ -65,6 +65,7 @@ RATE_LIMIT_INTERVAL = 1  # Minimum interval between API calls in seconds
 BACKOFF_TIME = int(os.getenv("BACKOFF_TIME", "5"))
 LIMIT_BUY_ADJUSTMENT = float(os.getenv("BUY_ADJUSTMENT", "0.002"))
 LIMIT_SELL_ADJUSTMENT = float(os.getenv("SELL_ADJUSTMENT", "0.002"))
+USE_RSI = os.getenv("USE_RSI", "False").lower() == "true"
 
 # For WebSocket URL
 ws_url_binance = "wss://stream.binance.us:9443/ws/usdtusd@ticker"
@@ -206,9 +207,10 @@ def send_periodic_update():
             else:
                 rsi_binance_str = "Not enough data"
 
-            # Include Buy and Sell thresholds
+            # Include Buy and Sell thresholds and RSI status
             buy_threshold_str = f"{BUY_THRESHOLD:.4f}"
             sell_threshold_str = f"{SELL_THRESHOLD:.4f}"
+            rsi_usage_str = "Enabled" if USE_RSI else "Disabled"
 
             binance_status = (
                 f"<b>Binance Status:</b>\n"
@@ -217,6 +219,7 @@ def send_periodic_update():
                 f"• USDT Balance: <b>{usdt_balance_binance:.2f}</b>\n"
                 f"• Price: <b>{current_price_binance}</b>\n"
                 f"• RSI: <b>{rsi_binance_str}</b>\n"
+                f"• RSI Usage: <b>{rsi_usage_str}</b>\n"
                 f"• Buy Threshold: <b>{buy_threshold_str}</b>\n"
                 f"• Sell Threshold: <b>{sell_threshold_str}</b>\n"
                 f"• WebSocket: <i>{websocket_status_binance}</i> {websocket_emoji}"
@@ -244,6 +247,7 @@ def send_periodic_update():
             # Include Buy and Sell thresholds
             buy_threshold_str = f"{BUY_THRESHOLD:.4f}"
             sell_threshold_str = f"{SELL_THRESHOLD:.4f}"
+            rsi_usage_str = "Enabled" if USE_RSI else "Disabled"
 
             kraken_status = (
                 f"<b>Kraken Status:</b>\n"
@@ -252,6 +256,7 @@ def send_periodic_update():
                 f"• USDT Balance: <b>{usdt_balance_kraken:.2f}</b>\n"
                 f"• Price: <b>{current_price_kraken}</b>\n"
                 f"• RSI: <b>{rsi_kraken_str}</b>\n"
+                f"• RSI Usage: <b>{rsi_usage_str}</b>\n"
                 f"• Buy Threshold: <b>{buy_threshold_str}</b>\n"
                 f"• Sell Threshold: <b>{sell_threshold_str}</b>\n"
                 f"• WebSocket: <i>{websocket_status_kraken}</i> {websocket_emoji}"
@@ -397,19 +402,30 @@ def calculate_rsi(prices, period=RSI_PERIOD):
 
 # Function to determine if order should be placed
 def should_place_order(current_price, side, price_history):
-    rsi = calculate_rsi(price_history)
-    if rsi is None:
-        logging.info("Not enough data to calculate RSI.")
-        return False
+    if USE_RSI:
+        rsi = calculate_rsi(price_history)
+        if rsi is None:
+            logging.info("Not enough data to calculate RSI.")
+            return False
 
-    if side == "BUY":
-        if current_price < BUY_THRESHOLD and rsi < RSI_OVERSOLD:
-            logging.info(f"Conditions met for BUY order: Price={current_price}, RSI={rsi}")
-            return True
-    elif side == "SELL":
-        if current_price > SELL_THRESHOLD and rsi > RSI_OVERBOUGHT:
-            logging.info(f"Conditions met for SELL order: Price={current_price}, RSI={rsi}")
-            return True
+        if side == "BUY":
+            if current_price < BUY_THRESHOLD and rsi < RSI_OVERSOLD:
+                logging.info(f"Conditions met for BUY order: Price={current_price}, RSI={rsi}")
+                return True
+        elif side == "SELL":
+            if current_price > SELL_THRESHOLD and rsi > RSI_OVERBOUGHT:
+                logging.info(f"Conditions met for SELL order: Price={current_price}, RSI={rsi}")
+                return True
+    else:
+        # When USE_RSI is False, only consider price thresholds
+        if side == "BUY":
+            if current_price < BUY_THRESHOLD:
+                logging.info(f"Conditions met for BUY order without RSI: Price={current_price}")
+                return True
+        elif side == "SELL":
+            if current_price > SELL_THRESHOLD:
+                logging.info(f"Conditions met for SELL order without RSI: Price={current_price}")
+                return True
     return False
 
 # Function to place an instant order for Binance (limit order with small adjustment)
@@ -507,12 +523,16 @@ def place_market_order_kraken(pair, side, volume):
 
 # Function to evaluate the market and place a trade if conditions are met
 def evaluate_market_and_execute_orders(current_price, price_history, exchange_name):
-    # Calculate RSI
-    rsi = calculate_rsi(price_history)
-    if rsi is not None:
-        logging.info(f"[Evaluation][{exchange_name}] Current price: {current_price}, RSI: {rsi:.2f}")
+    if USE_RSI:
+        # Calculate RSI
+        rsi = calculate_rsi(price_history)
+        if rsi is not None:
+            logging.info(f"[Evaluation][{exchange_name}] Current price: {current_price}, RSI: {rsi:.2f}")
+        else:
+            logging.info(f"[Evaluation][{exchange_name}] Current price: {current_price}, RSI: Not enough data")
     else:
-        logging.info(f"[Evaluation][{exchange_name}] Current price: {current_price}, RSI: Not enough data")
+        rsi = None  # RSI not used
+        logging.info(f"[Evaluation][{exchange_name}] Current price: {current_price} (RSI not used)")
 
     # Determine if we should place a BUY order
     if should_place_order(current_price, side="BUY", price_history=price_history):
