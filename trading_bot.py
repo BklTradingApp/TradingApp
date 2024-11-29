@@ -51,18 +51,18 @@ base_url_binance = "https://api.binance.us"
 base_url_kraken = "https://api.kraken.com"
 
 # Configuration
-BUY_THRESHOLD = 0.9982
+BUY_THRESHOLD = 0.9985
 SELL_THRESHOLD = 1.0025
 balance_threshold = float(os.getenv("BALANCE_THRESHOLD", "2750"))
 ORDER_TIMEOUT = 10  # Minutes
 POSITION_SIZE_PERCENTAGE = 0.10  # Use 10% of available balance for initial testing
-MAX_RETRY = int(os.getenv("MAX_RETRY", 3))
+MAX_RETRY = int(os.getenv("MAX_RETRY", "3"))
 SIMULATION_MODE = os.getenv("SIMULATION_MODE", "False").lower() == "true"
 RSI_PERIOD = 14  # RSI period for calculations
 RSI_OVERSOLD = 30
 RSI_OVERBOUGHT = 70
 RATE_LIMIT_INTERVAL = 1  # Minimum interval between API calls in seconds
-BACKOFF_TIME = int(os.getenv("BACKOFF_TIME", 5))
+BACKOFF_TIME = int(os.getenv("BACKOFF_TIME", "5"))
 LIMIT_BUY_ADJUSTMENT = float(os.getenv("BUY_ADJUSTMENT", "0.002"))
 LIMIT_SELL_ADJUSTMENT = float(os.getenv("SELL_ADJUSTMENT", "0.002"))
 
@@ -476,7 +476,12 @@ def place_market_order_kraken(pair, side, volume):
 
 # Function to evaluate the market and place a trade if conditions are met
 def evaluate_market_and_execute_orders(current_price, price_history, exchange_name):
-    logging.info(f"Current price on {exchange_name}: {current_price}")
+    # Calculate RSI
+    rsi = calculate_rsi(price_history)
+    if rsi is not None:
+        logging.info(f"[Evaluation][{exchange_name}] Current price: {current_price}, RSI: {rsi:.2f}")
+    else:
+        logging.info(f"[Evaluation][{exchange_name}] Current price: {current_price}, RSI: Not enough data")
 
     # Determine if we should place a BUY order
     if should_place_order(current_price, side="BUY", price_history=price_history):

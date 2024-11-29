@@ -1,13 +1,25 @@
 #!/bin/bash
 
+# Define the application directory
+APP_DIR="$HOME/TradingApp"
+
 # Navigate to the TradingApp directory
-cd ~/TradingApp
+cd "$APP_DIR" || exit
 
 # Pull the latest code from the GitHub repository
 git pull origin master
 
+# Check if the virtual environment exists; if not, create it
+if [ ! -d "venv" ]; then
+    python3 -m venv venv
+    echo "Created new virtual environment."
+fi
+
 # Activate the virtual environment
 source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
 
 # Check if the existing tmux session is running, and if so, kill it gracefully
 if tmux has-session -t trading_bot 2>/dev/null; then
@@ -20,6 +32,6 @@ else
     echo "No existing tmux session named trading_bot found."
 fi
 
-# Start a new tmux session running the bot
-tmux new-session -d -s trading_bot 'python trading_bot.py'
+# Start a new tmux session running the bot, redirecting output to a log file
+tmux new-session -d -s trading_bot 'python trading_bot.py >> bot.log 2>&1'
 echo "Started a new tmux session: trading_bot"
