@@ -141,7 +141,8 @@ def graceful_exit(signum, frame):
     try:
         message = "Received shutdown signal. Saving order history and exiting gracefully..."
         logging.info(message)
-        print(message)  # Add this line to see the output in the console
+        print(message)  # Output to console
+        send_telegram_message(message)  # Send shutdown message via Telegram
 
         terminate_flag.set()  # Signal threads to stop
 
@@ -152,14 +153,14 @@ def graceful_exit(signum, frame):
             ws_kraken.close()
 
         # Ensure the periodic update thread finishes
-        if periodic_thread.is_alive():
+        if 'periodic_thread' in globals() and periodic_thread.is_alive():
             periodic_thread.join()
 
         if not order_history.empty:
             order_history.to_csv(order_history_file, index=False)
     except Exception as e:
         logging.error(f"Error during graceful shutdown: {e}")
-        print(f"Error during graceful shutdown: {e}")  # Add this line
+        print(f"Error during graceful shutdown: {e}")  # Output to console
     finally:
         exit(0)
 
@@ -197,12 +198,27 @@ def send_periodic_update():
             status_emoji = "🟢" if trading_active_binance else "🟡"
             websocket_emoji = "✅" if websocket_status_binance == "Connected" else "❌"
 
+            # Calculate RSI
+            with price_history_lock:
+                rsi_binance = calculate_rsi(price_history_binance)
+            if rsi_binance is not None:
+                rsi_binance_str = f"{rsi_binance:.2f}"
+            else:
+                rsi_binance_str = "Not enough data"
+
+            # Include Buy and Sell thresholds
+            buy_threshold_str = f"{BUY_THRESHOLD:.4f}"
+            sell_threshold_str = f"{SELL_THRESHOLD:.4f}"
+
             binance_status = (
                 f"<b>Binance Status:</b>\n"
                 f"• Status: <i>{trading_status_binance}</i> {status_emoji}\n"
                 f"• USD Balance: <b>${usd_balance_binance:.2f}</b>\n"
                 f"• USDT Balance: <b>{usdt_balance_binance:.2f}</b>\n"
                 f"• Price: <b>{current_price_binance}</b>\n"
+                f"• RSI: <b>{rsi_binance_str}</b>\n"
+                f"• Buy Threshold: <b>{buy_threshold_str}</b>\n"
+                f"• Sell Threshold: <b>{sell_threshold_str}</b>\n"
                 f"• WebSocket: <i>{websocket_status_binance}</i> {websocket_emoji}"
             )
 
@@ -217,12 +233,27 @@ def send_periodic_update():
             status_emoji = "🟢" if trading_active_kraken else "🟡"
             websocket_emoji = "✅" if websocket_status_kraken == "Connected" else "❌"
 
+            # Calculate RSI
+            with price_history_lock:
+                rsi_kraken = calculate_rsi(price_history_kraken)
+            if rsi_kraken is not None:
+                rsi_kraken_str = f"{rsi_kraken:.2f}"
+            else:
+                rsi_kraken_str = "Not enough data"
+
+            # Include Buy and Sell thresholds
+            buy_threshold_str = f"{BUY_THRESHOLD:.4f}"
+            sell_threshold_str = f"{SELL_THRESHOLD:.4f}"
+
             kraken_status = (
                 f"<b>Kraken Status:</b>\n"
                 f"• Status: <i>{trading_status_kraken}</i> {status_emoji}\n"
                 f"• USD Balance: <b>${usd_balance_kraken:.2f}</b>\n"
                 f"• USDT Balance: <b>{usdt_balance_kraken:.2f}</b>\n"
                 f"• Price: <b>{current_price_kraken}</b>\n"
+                f"• RSI: <b>{rsi_kraken_str}</b>\n"
+                f"• Buy Threshold: <b>{buy_threshold_str}</b>\n"
+                f"• Sell Threshold: <b>{sell_threshold_str}</b>\n"
                 f"• WebSocket: <i>{websocket_status_kraken}</i> {websocket_emoji}"
             )
 
@@ -656,7 +687,8 @@ def reconnect_after_close(exchange_name, start_ws_func):
 
     if not terminate_flag.is_set():
         logging.error(f"Maximum reconnection attempts reached for {exchange_name}. Giving up.")
-        send_telegram_message(f"Maximum reconnection attempts reached for {exchange_name}. Giving up.")
+        send_telegram_message(f"Maximum reconnection attempts reached for {exchange_name}. Shutting down the bot.")
+        graceful_exit(None, None)  # Shut down the bot
 
 def update_price_history(price_history_list, price):
     with price_history_lock:
@@ -686,4 +718,10 @@ def main():
         time.sleep(1)
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as e:
+        logging.error(f"Unhandled exception: {e}")
+        send_telegram_message(f"Bot crashed due to an unhandled exception: {e}")
+        graceful_exit(None, None)
+
