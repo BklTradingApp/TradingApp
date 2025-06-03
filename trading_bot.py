@@ -511,7 +511,7 @@ def place_market_order_kraken(pair, side, volume):
     if response:
         try:
             order_response = response.json()
-            if order_response.get('error') and not order_response['error']:
+            if not order_response.get('error'):
                 logging.info(f"Kraken order placed successfully: {order_response['result']}")
                 send_telegram_message(f"Kraken order placed successfully: {order_response['result']}")
                 return order_response['result'], datetime.now()
