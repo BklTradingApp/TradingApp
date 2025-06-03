@@ -16,7 +16,7 @@ import numpy as np  # Added for RSI calculations
 from requests.exceptions import HTTPError, Timeout, ConnectionError
 import threading  # Import threading for locks and scheduling updates
 
-# Global websocket references
+# Global WebSocket references
 ws_binance = None
 ws_kraken = None
 
