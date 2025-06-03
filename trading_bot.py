@@ -428,7 +428,7 @@ def should_place_order(current_price, side, price_history):
                 return True
     return False
 
-# Function to place an instant order for Binance (limit order with small adjustment)
+# Function places a limit order on Binance adjusted to behave like a market order
 def place_market_order_binance(symbol, side, quantity, current_price):
     if SIMULATION_MODE:
         logging.info(f"Simulating Binance market order placement: {side} {quantity:.2f} of {symbol} at ${current_price:.4f}")
